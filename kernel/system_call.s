@@ -127,7 +127,7 @@ ret_from_sys_call:
 	iret
 
 .align 2
-_timer_interrupt:
+_timer_interrupt: # 定时器中断，每隔10ms发生一次中断，然后中间调用 sched.c中的 do_timer()函数进行进程调度。
 	push %ds		# save ds,es and put kernel data space
 	push %es		# into them. %fs is used by _system_call
 	push %fs
@@ -159,8 +159,8 @@ _sys_execve:
 	ret
 
 .align 2
-_sys_fork:
-	call _find_empty_process
+_sys_fork: 					 # sys_fork系统调用
+	call _find_empty_process # 找到空的进程位置，即分配一个进程号
 	testl %eax,%eax
 	js 1f
 	push %gs
@@ -168,7 +168,7 @@ _sys_fork:
 	pushl %edi
 	pushl %ebp
 	pushl %eax
-	call _copy_process
+	call _copy_process # 调用fock.c中创建进程的方法
 	addl $20,%esp
 1:	ret
 

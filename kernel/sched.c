@@ -95,6 +95,18 @@ void math_state_restore()
  * tasks can run. It can not be killed, and it cannot sleep. The 'state'
  * information in task[0] is never used.
  */
+/**
+ * 进程调度函数--这里linux代码是0.10版本的，调度原理比较简单：
+ *
+ * 1. 概括：linux操作系统对进程的调度就是对task_struct[] 的检索、遍历，具体调度逻辑如下
+ * 2. 细节：从task_struct[]中找到时间片(task_struct->counter)最大的进程对象(task_struct)，然后进行
+ * 	  调用，直到时间片为0才退出。之后再进行新一轮的调用。
+ * 
+ * 还有一个问题，task_struct->counter什么时候被设置的呢？
+ * 	 --当task_struct[]中全部的进程的counter都为0时(即都耗尽完时间片了)，就进行新一轮的时间片分配，
+ *   --每个进程分配多少是根据priority字段判断的，priority大的应该多分配点时间片。
+ * 	   具体分配算法是：counter=counter/2 + priority;
+ */
 void schedule(void)
 {
 	int i,next,c;
@@ -120,18 +132,28 @@ void schedule(void)
 		next = 0;
 		i = NR_TASKS;
 		p = &task[NR_TASKS];
+
+		// 1. 从task_struct[]中找到时间片(task_struct->counter)最大的进程对象(task_struct)，
+		// 其中c是最大的counter值；next是最大的counter值对应的pid
 		while (--i) {
 			if (!*--p)
 				continue;
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
-				c = (*p)->counter, next = i;
+				c = (*p)->counter, next = i; 
 		}
-		if (c) break;
+
+		// 2. 若c不为null/0，说明当前有待执行的task_struct，则直接break，跳出循环执行switch_to(next)切换到task_struct[next]进程上；
+		if (c) break; 
+
+		// 3. 若c为null，则说明当前所有进程的时间片都用完了，就需要为所有进程重新分配时间片(counter)
+		// 分配公式为：counter = counter/2 + priority
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +
 						(*p)->priority;
 	}
+
+	// 切换到task[next]进程
 	switch_to(next);
 }
 
@@ -142,6 +164,7 @@ int sys_pause(void)
 	return 0;
 }
 
+// 当某个进程想访问CPU资源时，碰巧CPU资源被占用了，那么就会调用sleep_on()函数，让进程休眠。
 void sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
@@ -154,6 +177,19 @@ void sleep_on(struct task_struct **p)
 	*p = current;
 	current->state = TASK_UNINTERRUPTIBLE;
 	schedule();
+
+	// 当调用上一步schedule()方法时，会进行进程切换，这里就会阻塞。
+	
+	// refrence：https://github.com/niubilityCode/linux-0.11/blob/master/kernel/sched.c
+	// 只有当这个等待任务被唤醒时，调度程序才又返回到这里，表示本进程已被明确的唤醒(就
+    // 续态)。既然大家都在等待同样的资源，那么在资源可用时，就有必要唤醒所有等待该该资源
+    // 的进程。该函数嵌套调用，也会嵌套唤醒所有等待该资源的进程。这里嵌套调用是指一个
+    // 进程调用了sleep_on()后就会在该函数中被切换掉，控制权呗转移到其他进程中。此时若有
+    // 进程也需要使用同一资源，那么也会使用同一个等待队列头指针作为参数调用sleep_on()函数，
+    // 并且也会陷入该函数而不会返回，最终形成一个等待链表，链表中存的都是等待唤醒的进程。只有当内核某处代码以队列头指针作为参数wake_up了队列，
+    // 那么当系统切换去执行头指针所指的进程A时，该进程才会继续执行下面的代码，把队列后一个
+    // 进程B置位就绪状态(唤醒)。而当轮到B进程执行时，它也才可能继续执行下面的代码。若它
+    // 后面还有等待的进程C，那它也会把C唤醒等。
 	if (tmp)
 		tmp->state=0;
 }
@@ -179,6 +215,7 @@ repeat:	current->state = TASK_INTERRUPTIBLE;
 		tmp->state=0;
 }
 
+// 唤醒进程: state=0
 void wake_up(struct task_struct **p)
 {
 	if (p && *p) {
@@ -316,10 +353,10 @@ void add_timer(long jiffies, void (*fn)(void))
 
 void do_timer(long cpl)
 {
-	if (cpl)
-		current->utime++;
+	if (cpl) //cpl是进程的状态标志，准确来说是CPU上核的状态(用户态 or 内核态)。utime和stime是用来统计用户进程和内核程序的执行时间的。
+		current->utime++; //用户程序的运行时间，++
 	else
-		current->stime++;
+		current->stime++; //内核程序的运行时间，++
 	if (next_timer) {
 		next_timer->jiffies--;
 		while (next_timer && next_timer->jiffies <= 0) {
@@ -397,7 +434,7 @@ void sched_init(void)
 	set_ldt_desc(gdt+FIRST_LDT_ENTRY,&(init_task.task.ldt));
 	p = gdt+2+FIRST_TSS_ENTRY;
 	for(i=1;i<NR_TASKS;i++) {
-		task[i] = NULL;
+		task[i] = NULL; //将所有进程对象task[] 都置为NULL
 		p->a=p->b=0;
 		p++;
 		p->a=p->b=0;

@@ -178,6 +178,7 @@ void do_reserved(long esp, long error_code)
 	die("reserved (15,17-47) error",esp,error_code);
 }
 
+// 中断初始化函数
 void trap_init(void)
 {
 	int i;

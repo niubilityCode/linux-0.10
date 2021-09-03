@@ -16,11 +16,12 @@
 .globl _invalid_TSS,_segment_not_present,_stack_segment
 .globl _general_protection,_coprocessor_error,_irq13,_reserved
 
+# Comment by Richard.ji
 _divide_error:
 	pushl $_do_divide_error
-no_error_code:
-	xchgl %eax,(%esp)
-	pushl %ebx
+no_error_code: # 一个中断的处理流程就是三步：1.保存上下文 2.执行call命令，执行中断处理程序 3.恢复上下文
+	xchgl %eax,(%esp) 
+	pushl %ebx	# 1.保存上、下文到栈中(下面的所有pushl/push操作都是将寄存器中的值放入栈中)
 	pushl %ecx
 	pushl %edx
 	pushl %edi
@@ -36,9 +37,9 @@ no_error_code:
 	mov %dx,%ds
 	mov %dx,%es
 	mov %dx,%fs
-	call *%eax
+	call *%eax	# 2.执行中断处理程序(对于每种类型的中断而言，eax的值都不一样：eax寄存器的值是实现存入的该中断处理程序的函数首地址)
 	addl $8,%esp
-	pop %fs
+	pop %fs	# 3.从栈中恢复上、下文(面的所有popl/pop操作都是将栈中的值恢复到寄存器中)
 	pop %es
 	pop %ds
 	popl %ebp
@@ -55,8 +56,8 @@ _debug:
 	jmp no_error_code
 
 _nmi:
-	pushl $_do_nmi
-	jmp no_error_code
+	pushl $_do_nmi # 中断处理函数入栈 (该中断处理函数是c语言写的，在trap.c中)
+	jmp no_error_code #跳转到定义好的汇编代码区
 
 _int3:
 	pushl $_do_int3

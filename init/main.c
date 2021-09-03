@@ -72,12 +72,17 @@ inb_p(0x71); \
 
 #define BCD_TO_BIN(val) ((val)=((val)&15) + ((val)>>4)*10)
 
+// linux操作系统启动时调用，初始化时间，得到一个全局的时间值中：
+// startup_time=计算从1970年1月1日0时到现在经过的秒数。
+
+// tops：该值startup_time后续给JIFFIES(一个系统的时钟滴答，每滴答一下是10ms，可以当做定时器)使用，
+// 可以用来当CPU时间片单位。同时每隔10ms会引发一个定时器中断。
 static void time_init(void)
 {
 	struct tm time;
 
 	do {
-		time.tm_sec = CMOS_READ(0);
+		time.tm_sec = CMOS_READ(0); //从CMOS硬件中读取一个数，下面类似
 		time.tm_min = CMOS_READ(2);
 		time.tm_hour = CMOS_READ(4);
 		time.tm_mday = CMOS_READ(7);
@@ -99,6 +104,7 @@ static long buffer_memory_end = 0;
 
 struct drive_info { char dummy[32]; } drive_info;
 
+// main函数，在操作系统启动时，执行该函数
 void main(void)		/* This really IS void, no error here. */
 {			/* The startup routine assumes (well, ...) this */
 /*
@@ -115,18 +121,43 @@ void main(void)		/* This really IS void, no error here. */
 		buffer_memory_end = 2*1024*1024;
 	else
 		buffer_memory_end = 1*1024*1024;
+	
+	// 进行内存控制器的初始化，加载内存驱动
 	mem_init(buffer_memory_end,memory_end);
+
+	// 进行异常函数的初始化
 	trap_init();
+
+	// 进行块设备驱动的初始化，加载块设备驱动
 	blk_dev_init();
+
+	// 进行字符设备驱动的初始化，加载字符设备驱动
 	chr_dev_init();
+
+	// 进行控制台设备的初始化，加载显示和传输设备的驱动
 	tty_init();
-	time_init();
+
+	// 加载定时器驱动
+	time_init(); 
+
+	// 进行进程调度初始化
 	sched_init();
+	
+	// 进行缓冲区初始化
 	buffer_init(buffer_memory_end);
+	
+	// 尽心硬盘设备的初始化，加载硬盘驱动
 	hd_init();
+
+	// 尽心软盘设备的初始化，加载软盘驱动
 	floppy_init();
 	sti();
+
+	// 从main方法开始直至这里，代码都是在内核态运行的(为了保证上面的初始化不被打断-即没有中断，所以才在内核态运行)。
+	// 初始化完成之后就执行move_to_user_mode()切换到用户态了。后面在用户态执行就可以响应中断了。
 	move_to_user_mode();
+	
+	// fork()创建0号进程，0号进程是所有进程的父进程
 	if (!fork()) {		/* we count on this going ok */
 		init();
 	}
@@ -161,9 +192,9 @@ void init(void)
 	setup((void *) &drive_info);
 	if (!fork())
 		_exit(execve("/bin/update",NULL,NULL));
-	(void) open("/dev/tty0",O_RDWR,0);
-	(void) dup(0);
-	(void) dup(0);
+	(void) open("/dev/tty0",O_RDWR,0); // 打开标准输入控制台
+	(void) dup(0); // 打开标准输出控制台
+	(void) dup(0); // 打开标准错误控制台
 	printf("%d buffers = %d bytes buffer space\n\r",NR_BUFFERS,
 		NR_BUFFERS*BLOCK_SIZE);
 	printf("Free mem: %d bytes\n\r",memory_end-buffer_memory_end);
