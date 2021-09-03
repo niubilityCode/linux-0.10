@@ -75,11 +75,13 @@ struct tss_struct {
 	struct i387_struct i387;
 };
 
+// 创建一个进程，对应的就会有一个task_struct对象来表示该进程。
+// task_struct[] 进程向量表，表示系统中所有的进程。
 struct task_struct {
 /* these are hardcoded - don't touch */
-	long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
-	long counter;
-	long priority;
+	long state;	//进程状态 /* -1 unrunnable, 0 runnable, >0 stopped */
+	long counter; //进程的时间片计数值
+	long priority; //进程优先级
 	long signal;
 	struct sigaction sigaction[32];
 	long blocked;	/* bitmap of masked signals */
@@ -87,10 +89,10 @@ struct task_struct {
 	int exit_code;
 	unsigned long end_code,end_data,brk,start_stack;
 	long pid,father,pgrp,session,leader;
-	unsigned short uid,euid,suid;
+	unsigned short uid,euid,suid; //进程的uid等各个id
 	unsigned short gid,egid,sgid;
 	long alarm;
-	long utime,stime,cutime,cstime,start_time;
+	long utime,stime,cutime,cstime,start_time; //保存用户程序的执行时间总和 以及 中断进入内核态后内核程序的执行时间
 	unsigned short used_math;
 /* file system info */
 	int tty;		/* -1 if no tty, so it must be signed */
@@ -98,11 +100,20 @@ struct task_struct {
 	struct m_inode * pwd;
 	struct m_inode * root;
 	unsigned long close_on_exec;
-	struct file * filp[NR_OPEN];
-/* ldt for this task 0 - zero 1 - cs 2 - ds&ss */
-	struct desc_struct ldt[3];
-/* tss for this task */
-	struct tss_struct tss;
+	struct file * filp[NR_OPEN]; //进程打开了多少文件，进程最大能打开的文件数是NR_OPEN=20个
+	
+/* ldt for this task 0 - zero 1 - cs 2 - ds&ss
+* 保存两部分内容：
+*   1. ldt[1]对应cs(Code segment/text segment, https://en.wikipedia.org/wiki/Code_segment), 保存代码编译之后的指令
+*   2. ldt[2]对应ds(Data segment, https://en.wikipedia.org/wiki/Data_segment#Data)，保存初始化的全局变量/静态变量等等 
+*/
+	struct desc_struct ldt[3]; //局部描述表(Local Descriptor Table, https://en.wikipedia.org/wiki/Global_Descriptor_Table#Local_Descriptor_Table)
+
+/* tss for this task 
+*   看结构体tss_struct就可以知道，这里面保存了各种寄存器的值。目的是在进程切换时，保存CPU核中各个寄存器的值，
+*   等再次切换回该进程时，从tss恢复值到各个寄存器中，就可以复原上下文，继续执行该进程了。
+*/
+	struct tss_struct tss; //任务状态段(task state segment, https://en.wikipedia.org/wiki/Task_state_segment)
 };
 
 /*
@@ -167,6 +178,10 @@ __asm__("str %%ax\n\t" \
  * This also clears the TS-flag if the task we switched to has used
  * tha math co-processor latest.
  */
+// 进程切换函数，用汇编代码写的，执行效率很高，具体切换逻辑如下：
+// 1. cmpl命令判断要切换的目标进程是否 是正在执行的进程，
+// 	   -- 若是，则什么都不做，继续执行当前进程即可
+// 	   -- 若否，则切换（先不考虑协处理器【math co-processor】的逻辑，不影响大体流程）
 #define switch_to(n) {\
 struct {long a,b;} __tmp; \
 __asm__("cmpl %%ecx,_current\n\t" \

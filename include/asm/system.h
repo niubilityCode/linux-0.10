@@ -33,6 +33,14 @@ __asm__ ("movw %%dx,%%ax\n\t" \
 #define set_intr_gate(n,addr) \
 	_set_gate(&idt[n],14,0,addr)
 
+// Comment by Richard.ji
+// #define 标量 值，是个宏定义，其中"值"可以为字符串、数值、表达式等等。 
+// 其中宏定义 set_trap_gate(n,addr) 和 set_system_gate(n,addr)中都调用了同一个
+// 函数_set_gate，区别只是传入的值分别为0和3，代表了优先级。
+// 0代表addr指针指向的函数优先级高，只能被用户程序调用；3代表addr优先级别低，可以被用户程序和系统调用
+
+// 其中idt是一个struct类型的数组，全称：interrupt descriptor table(中断描述表)，
+// 数组长度为256
 #define set_trap_gate(n,addr) \
 	_set_gate(&idt[n],15,0,addr)
 

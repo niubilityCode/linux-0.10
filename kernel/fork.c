@@ -36,6 +36,9 @@ void verify_area(void * addr,int size)
 	}
 }
 
+/**
+ * 进行老进程->新进程：LDT中-代码段(Code Segment)和LDT中-数据段(Data Segment)的copy
+ * */
 int copy_mem(int nr,struct task_struct * p)
 {
 	unsigned long old_data_base,new_data_base,data_limit;
@@ -49,10 +52,15 @@ int copy_mem(int nr,struct task_struct * p)
 		panic("We don't support separate I&D");
 	if (data_limit < code_limit)
 		panic("Bad data_limit");
+	
+	// 为每一个进程申请64M的内存(包括LDI【数据段+代码段】区域、TSS区域、堆、栈加起来一共64M。0x4000000十进制=67108864字节=64M)
 	new_data_base = new_code_base = nr * 0x4000000;
 	set_base(p->ldt[1],new_code_base);
 	set_base(p->ldt[2],new_data_base);
+
+	// copy父进程的数据段 -> 新创建的进程中
 	if (copy_page_tables(old_data_base,new_data_base,data_limit)) {
+		// copy失败则释放这段空间
 		free_page_tables(new_data_base,data_limit);
 		return -ENOMEM;
 	}
@@ -73,11 +81,14 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	int i;
 	struct file *f;
 
+	// 1、为新创建的task_struct，申请内存空间
 	p = (struct task_struct *) get_free_page();
 	if (!p)
 		return -EAGAIN;
 	*p = *current;	/* NOTE! this doesn't copy the supervisor stack */
-	p->state = TASK_RUNNING;
+
+	// 2、各种赋值
+	p->state = TASK_RUNNING; //设置新进程为可运行状态
 	p->pid = last_pid;
 	p->father = current->pid;
 	p->counter = p->priority;
@@ -110,6 +121,8 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.trace_bitmap = 0x80000000;
 	if (last_task_used_math == current)
 		__asm__("fnsave %0"::"m" (p->tss.i387));
+
+	// 进行老进程->新进程：内存复制
 	if (copy_mem(nr,p)) {
 		free_page((long) p);
 		return -EAGAIN;
@@ -123,10 +136,17 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 		current->root->i_count++;
 	set_tss_desc(gdt+(nr<<1)+FIRST_TSS_ENTRY,&(p->tss));
 	set_ldt_desc(gdt+(nr<<1)+FIRST_LDT_ENTRY,&(p->ldt));
+
+	// 3、将新进程塞入全局变量task[]中
 	task[nr] = p;	/* do this last, just in case */
-	return last_pid;
+	return last_pid; // 返回新进程的PID
 }
 
+/* 找一个空的进程位置，即分配一个进程号，这里是从全局变量task[]数组中找(数组大小为64)。
+*  即给新创建的进程分配数组中一个位置，
+*  	 -- 如果找不到-即数组满了-即目前linux系统中已经有64个进程了，那么返回一个异常码-EAGAIN，表示资源不可用
+*	 -- 如果找到位置i∈[1, 64](0号位置是存放系统初始化时创建的0号进程)，则进程PID为i，表示成功找到空位了
+*/ 
 int find_empty_process(void)
 {
 	int i;

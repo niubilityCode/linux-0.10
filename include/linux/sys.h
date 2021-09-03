@@ -69,6 +69,7 @@ extern int sys_sigaction();
 extern int sys_sgetmask();
 extern int sys_ssetmask();
 
+// 所有的系统调用都在这了 Richard.ji
 fn_ptr sys_call_table[] = { sys_setup, sys_exit, sys_fork, sys_read,
 sys_write, sys_open, sys_close, sys_waitpid, sys_creat, sys_link,
 sys_unlink, sys_execve, sys_chdir, sys_time, sys_mknod, sys_chmod,

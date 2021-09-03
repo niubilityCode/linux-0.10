@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "string.h": "c",
-        "__config": "c"
+        "__config": "c",
+        "kernel.h": "c",
+        "wait.h": "c",
+        "signal.h": "c"
     }
 }
