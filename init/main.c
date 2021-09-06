@@ -111,12 +111,21 @@ void main(void)		/* This really IS void, no error here. */
  * Interrupts are still disabled. Do necessary setups, then
  * enable them
  */
+
+	// 设置操作西系统的根文件地址
  	ROOT_DEV = ORIG_ROOT_DEV;
+	// 设置操作系统驱动地址
  	drive_info = DRIVE_INFO;
+	
+	// 解析setup.s代码后获取系统内存参数
+	// 设置系统的内存大小：系统本身内存(1M) + 扩展内存大小(参数*KB)
 	memory_end = (1<<20) + (EXT_MEM_K<<10);
 	memory_end &= 0xfffff000;
+
+	// 控制操作系统的最大内存为16M
 	if (memory_end > 16*1024*1024)
 		memory_end = 16*1024*1024;
+	// 设置告诉缓冲区的大小
 	if (memory_end > 6*1024*1024)
 		buffer_memory_end = 2*1024*1024;
 	else
@@ -159,7 +168,11 @@ void main(void)		/* This really IS void, no error here. */
 	
 	// fork()创建0号进程，0号进程是所有进程的父进程
 	if (!fork()) {		/* we count on this going ok */
-		init();
+		//init()函数自然而然的运行到fork()创建的0号进程上(fork()之后的代码都是运行到当前创建的新进程上的)
+		// 因为fork()就会触发中断，进入中断处理程序，然后创建task_struct，然后复制父进程的一些数据，
+		// 然后更改子进程的一些数据，关键在于init()运行在进程0的上、下文(寄存器值)中，所以我们才说：
+		//【init()运行在进程0的上】
+		init(); 
 	}
 /*
  *   NOTE!!   For any other task 'pause()' would mean we have to get a
