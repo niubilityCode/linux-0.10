@@ -9,6 +9,7 @@ typedef unsigned int sigset_t;		/* 32 bits */
 #define _NSIG             32
 #define NSIG		_NSIG
 
+// 信号量定义
 #define SIGHUP		 1
 #define SIGINT		 2
 #define SIGQUIT		 3
@@ -18,7 +19,7 @@ typedef unsigned int sigset_t;		/* 32 bits */
 #define SIGIOT		 6
 #define SIGUNUSED	 7
 #define SIGFPE		 8
-#define SIGKILL		 9
+#define SIGKILL		 9 // 杀死某个进程
 #define SIGUSR1		10
 #define SIGSEGV		11
 #define SIGUSR2		12
@@ -26,9 +27,9 @@ typedef unsigned int sigset_t;		/* 32 bits */
 #define SIGALRM		14
 #define SIGTERM		15
 #define SIGSTKFLT	16
-#define SIGCHLD		17
+#define SIGCHLD		17	// 想父进程发出终止子进程的信号
 #define SIGCONT		18
-#define SIGSTOP		19
+#define SIGSTOP		19 // 停止某个进程
 #define SIGTSTP		20
 #define SIGTTIN		21
 #define SIGTTOU		22
