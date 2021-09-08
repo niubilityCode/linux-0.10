@@ -83,7 +83,7 @@ struct task_struct {
 	long counter; //进程的时间片计数值
 	long priority; //进程优先级
 	long signal;
-	struct sigaction sigaction[32];
+	struct sigaction sigaction[32]; //signal.h中定义了32个信号，所以这里数组是32，即一个进程最多能接受32种不同的信号(隐含：对于每种信号，进程最多只接受一次)
 	long blocked;	/* bitmap of masked signals */
 /* various fields */
 	int exit_code;
