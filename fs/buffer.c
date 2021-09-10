@@ -198,6 +198,10 @@ struct buffer_head * get_hash_table(int dev, int block)
  *		LBT 11.11.91
  */
 #define BADNESS(bh) (((bh)->b_dirt<<1)+(bh)->b_lock)
+/**
+ * 获取“块设备”(如硬盘、软板这些都属于块设备)中的某个数据块(data block)，
+ * 更准确来说是获取数据块的一个描述性的结构体buffer_head，里面记录了data block指针、块号、以及上、下一个块的指针
+ * */ 
 struct buffer_head * getblk(int dev,int block)
 {
 	struct buffer_head * tmp, * bh;

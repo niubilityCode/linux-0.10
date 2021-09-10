@@ -65,15 +65,15 @@ __asm__("incl %0\n\tandl $4095,%0"::"m" (head))
 typedef char buffer_block[BLOCK_SIZE];
 
 struct buffer_head {
-	char * b_data;			/* pointer to data block (1024 bytes) */
-	unsigned short b_dev;		/* device (0 = free) */
-	unsigned short b_blocknr;	/* block number */
-	unsigned char b_uptodate;
-	unsigned char b_dirt;		/* 0-clean,1-dirty */
-	unsigned char b_count;		/* users using this block */
-	unsigned char b_lock;		/* 0 - ok, 1 -locked */
-	struct task_struct * b_wait;
-	struct buffer_head * b_prev;
+	char * b_data;			/* pointer to data block (1024 bytes) */ // 数据区
+	unsigned short b_dev;		/* device (0 = free) */ // 块设备号(每块磁盘都对应一个块设备号)
+	unsigned short b_blocknr;	/* block number */ // 数据逻辑块号(一个b_dev:b_blocknr=1:n)
+	unsigned char b_uptodate;   // 更新的标志位，表示“高速缓冲区块”与“磁盘块”数据是否一致
+	unsigned char b_dirt;		/* 0-clean,1-dirty */ // “高速缓冲区块”是否被占用
+	unsigned char b_count;		/* users using this block */ // 使用该块的用户数量
+	unsigned char b_lock;		/* 0 - ok, 1 -locked */ // 是否加锁，发生在多进程访问共享 高速缓冲区块时
+	struct task_struct * b_wait; // 等待该“高速缓冲区块”释放的进程结构体指针，即有哪些进程在等待使用该“高速缓冲区块”中
+	struct buffer_head * b_prev; // 
 	struct buffer_head * b_next;
 	struct buffer_head * b_prev_free;
 	struct buffer_head * b_next_free;
@@ -89,14 +89,22 @@ struct d_inode {
 	unsigned short i_zone[9];
 };
 
+// 一个文件的描述信息，一个文件对应一个m_inode对象
 struct m_inode {
-	unsigned short i_mode;
-	unsigned short i_uid;
-	unsigned long i_size;
-	unsigned long i_mtime;
-	unsigned char i_gid;
-	unsigned char i_nlinks;
-	unsigned short i_zone[9];
+	unsigned short i_mode; // 文件的类型和属性
+	unsigned short i_uid; // 所属用户ID
+	unsigned long i_size; // 该文件的大小
+	unsigned long i_mtime; // 文件的修改时间
+	unsigned char i_gid; // 所属组ID
+	unsigned char i_nlinks; // 链接数
+
+	/*
+		该文件映射在哪些逻辑块上(即文件和磁盘的映射)，是个逻辑块的数组--“重要字段”。
+		i_zone[0~6]直接块号：如果文件只占用七个逻辑块，则只需要i_zone[0~7]每个位置存储一个逻辑块号即可
+		i_zone[7]一次间接块号：如果占用的块较多，属于[7, 512+7)，则占用一次间接块号
+		i_zone[8]二次间接块号：如果占用的块太多，属于[512+7, 512*512+7]，则占用二次间接块号
+	*/ 
+	unsigned short i_zone[9]; 
 /* these are in memory also */
 	struct task_struct * i_wait;
 	unsigned long i_atime;
